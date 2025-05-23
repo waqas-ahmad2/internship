@@ -1,7 +1,41 @@
-body{
-    margin: 0;
-    padding: 0;
+.sidebar_style{
+    background-color: #313a46;
+    max-width: 15%;
+
 }
+.sidebar_style a{
+    font-size: 17px;
+    color: #758393;
+    text-decoration: none;
+}
+
+.sidelink_style:hover{
+    color: #b5c7dc ;
+}
+
+.active_btn{
+    color: white !important ;
+}
+
+.bg-grey{
+    background: #f2f2f2;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-left: 2px;
+    margin-right: 2px;
+}
+
+thead th{
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+thead tr {
+    padding: 10px;
+}
+
 
 .modal {
     display: none;
@@ -24,3 +58,44 @@ body{
     border-radius: 8px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   }
+
+.hover-shadow:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2) !important;
+  transform: scale(1.02);
+}
+
+
+.print-mode .modal-footer {
+  display: none !important;
+}
+
+@media print{
+
+  .modal-footer {
+    display: none !important;
+  }
+}
+
+@media screen and (max-width: 768px) {
+    .sidebar_style {
+      max-width: 100% !important;
+      text-align: center;
+      padding: 0.5rem 0;
+    }
+  }
+
+  @media (min-width: 768px) {
+    #sidebar {
+      height: 100vh;
+    }
+  }
+  
+  @media (max-width: 767.98px) {
+    #sidebar {
+      width: 100%;
+      height: auto; /* Let content determine height */
+      flex-direction: row;
+      justify-content: space-around;
+    }
+  }
+  
