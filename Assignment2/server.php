@@ -1,7 +1,6 @@
 <?php
 if (session_status() === PHP_SESSION_NONE){
     session_start();
-    
 }
 
 $servername = "wsc5531.encs.concordia.ca";
@@ -19,6 +18,7 @@ if($con->connect_error){
 if (isset($_GET['action'])) {
     $action = $_GET['action'];
 
+    // student Management section
     if ($action === 'deleteStudent') {
         $id = $_GET['id'];
         $sql = "DELETE FROM students WHERE id=$id";
@@ -63,8 +63,6 @@ if (isset($_GET['action'])) {
         exit();
     }
 
-    
-
     if ($action === 'addStudent') {
         $name = $_POST['name'];
         $email = $_POST['email'];
@@ -81,6 +79,8 @@ if (isset($_GET['action'])) {
         header("Location: student.php");
         exit();
     }
+
+    // voucher Management Section
 
     if ($action === 'addVoucher') {
         $date = $_POST['date'];
@@ -139,7 +139,6 @@ if (isset($_GET['action'])) {
             echo json_encode(['error' => 'record not found']);
         }
         exit();
-        
     }
 
 
@@ -156,46 +155,79 @@ if (isset($_GET['action'])) {
             $_SESSION['message'] = "Error: Record ID: {$id} not deleted";
             $_SESSION['message_type'] = "danger";
         }
-
-    
         exit();
      }
 
+    if ($action === 'updateEntries') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $editedEntries = $input['editedEntries'];
+        $deletedEntries = $input['deletedEntries'];
+        $addedEntries = $input['addedEntries'];
+        $voucher_id = $input['voucherId'];
 
-     
+        // Process deleted entries
+        foreach ($deletedEntries as $id) {
+            $sql1 = "DELETE FROM detail WHERE id = $id";
+            $sql2 = "SELECT * FROM detail WHERE voucher_id = $voucher_id";
+            $sql3 = "DELETE FROM master WHERE voucher_id = $voucher_id";
+            $sql4 = "UPDATE master SET total_amount = (SELECT IFNULL(SUM(amount), 0) FROM detail WHERE voucher_id = $voucher_id)
+            WHERE voucher_id = $voucher_id";
     
-     if ($action === 'updateentry') {
-         // Get the JSON payload from the request
-         $input = json_decode(file_get_contents('php://input'), true);
-     
-         $id = (int) $input['id'];
-         $description = $con->real_escape_string($input['description']);
-         $amount = floatval($input['amount']);
-     
-         // Update the entry in the database
-         $sql = "UPDATE detail SET description = '$description', amount = $amount WHERE id = $id";
-     
-         if ($con->query($sql) === TRUE) {
-             // Recalculate the total amount for the voucher
-             $result = $con->query("SELECT voucher_id FROM detail WHERE id = $id");
-             if ($result && $row = $result->fetch_assoc()) {
-                 $voucher_id = (int) $row['voucher_id'];
-     
-                 $sql2 = "UPDATE master 
-                          SET total_amount = (SELECT IFNULL(SUM(amount), 0) FROM detail WHERE voucher_id = $voucher_id)
-                          WHERE voucher_id = $voucher_id";
-     
-                 $con->query($sql2);
-             }
-     
-             echo json_encode(['success' => true]);
-         } else {
-             echo json_encode(['success' => false, 'message' => 'Error updating entry: ' . $con->error]);
-         }
-         exit();
-     }
+            if ($con->query($sql1) === TRUE) {
+                //update amoint in the master
+                $con->query($sql4);
 
-     if ($action === 'addentry') {
+                // Delete from master only if no more details exist
+                if ($con->query($sql2)->num_rows === 0) {
+                    $con->query($sql3);
+                }
+            }
+        }
+
+        // Process edited entries
+        foreach ($editedEntries as $entry) {
+            $id = (int) $entry['id'];
+            $description = $con->real_escape_string($entry['description']);
+            $amount = floatval($entry['amount']);
+            $con->query("UPDATE detail SET description = '$description', amount = $amount WHERE id = $id");
+        }
+
+        // Process added entries
+        foreach($addedEntries as $addentry){
+            $student_id = (int) $addentry['student_id'];
+            $description = $con->real_escape_string($addentry['description']);
+            $amount = floatval($addentry['amount']);
+        
+            $sql = "INSERT INTO detail (voucher_id, student_id, description, amount) VALUES ($voucher_id, $student_id, '$description', $amount)";
+            
+            if ($con->query($sql) === TRUE) {
+        
+                // Recalculate the master total
+                $sql2 = "UPDATE master 
+                         SET total_amount = (SELECT IFNULL(SUM(amount), 0) FROM detail WHERE voucher_id = $voucher_id)
+                         WHERE voucher_id = $voucher_id";
+                $con->query($sql2);
+        
+                echo json_encode(['success' => true, 'addentry' => $addentry]);
+            
+            } else {
+                echo json_encode(['success' => false, 'message' => $con->error]);
+            }
+            exit();
+        }
+
+        // Recalculate the total amount for the voucher
+        if (!empty($editedEntries) || !empty($deletedEntries)) {
+            $con->query("UPDATE master 
+                        SET total_amount = (SELECT IFNULL(SUM(amount), 0) FROM detail WHERE voucher_id = $voucher_id)
+                        WHERE voucher_id = $voucher_id");
+        }
+        echo json_encode(['success' => true]);
+        exit();
+    }
+
+
+    if ($action === 'addentry') {
         $input = json_decode(file_get_contents("php://input"), true);
         $voucher_id = (int)$input['voucher_id'];
         $student_id = (int)$input['student_id'];
@@ -219,48 +251,8 @@ if (isset($_GET['action'])) {
         }
         exit();
     }
-     
-
-    
-
-    if ($action == 'deleteentry') {
-        $id = (int) $_GET['id'];
-    
-        // Fetch the voucher_id of the entry
-        $result = $con->query("SELECT voucher_id FROM detail WHERE id = $id LIMIT 1");
-        if ($result && $row = $result->fetch_assoc()) {
-            $voucher_id = $row['voucher_id'];
-    
-            $sql1 = "DELETE FROM detail WHERE id = $id";
-            $sql2 = "SELECT * FROM detail WHERE voucher_id = $voucher_id";
-            $sql3 = "DELETE FROM master WHERE voucher_id = $voucher_id";
-            $sql4 = "UPDATE master SET total_amount = (SELECT IFNULL(SUM(amount), 0) FROM detail WHERE voucher_id = $voucher_id)
-            WHERE voucher_id = $voucher_id";
-    
-    
-            if ($con->query($sql1) === TRUE) {
-                //update amoint in the master
-                $con->query($sql4);
-
-                // Delete from master only if no more details exist
-                if ($con->query($sql2)->num_rows === 0) {
-                    $con->query($sql3);
-                }
-    
-                $_SESSION['message'] = "Entry {$id} deleted successfully";
-                $_SESSION['message_type'] = "success";
-            } else {
-                $_SESSION['message'] = "Error: Could not delete Entry ID {$id}";
-                $_SESSION['message_type'] = "danger";
-            }
-        } else {
-            $_SESSION['message'] = "Error: Entry not found";
-            $_SESSION['message_type'] = "danger";
-        }
-        exit();
-
-    }
 }
+
 function login(){
     
     if(isset($_POST['submit'])){
