@@ -239,7 +239,7 @@
                 <th id='edit_entry_th_action' class="d-none">Action</th>
             </tr>
           </thead>
-          <button id='addEntryBtn' type="button" class="btn btn-primary mb-3 d-none" onclick="addNewEntryRow()">+ Add Entry</button>
+          <button id='addEntryBtn' type="button" class="btn btn-primary mb-3 d-none" onclick="addNewEntryRow()">Add Entry</button>
 
           <tbody id="receiptDetails">
               <!-- Rows will be dynamically populated here -->
@@ -251,6 +251,7 @@
 
       <div class="d-flex justify-content-end gap-3 mt-3 modal-footer">
         <button type="button" id="saveButton" class="btn btn-success d-none" onclick="generatePDF()">Save</button>
+        <button type="button" id="updateButton" class="btn btn-warning d-none" >Update</button>
         <button type="button" id="printButton" class="btn btn-info d-none" onclick="window.print()">Print</button>
         <button type="button" class="btn btn-secondary" onclick="CloseReceiptModal('refresh')">Close</button>
       </div>
