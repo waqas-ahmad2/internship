@@ -18,16 +18,25 @@ function search(){
 
 function password_show(){
     eye = document.getElementById('eye_icon')
+    eyelogo = document.getElementById('eyelogo')
+    
     pass_field = document.getElementById('password')
     eye.addEventListener('click',()=>{
         if(pass_field.getAttribute('type')==='text'){
             pass_field.setAttribute('type',"password")
+            eyelogo.classList.remove("fa-eye-slash")
+            eyelogo.classList.add("fa-eye")
+
         }
         else if(pass_field.getAttribute('type')==='password'){
             pass_field.setAttribute('type',"text")
+            eyelogo.classList.remove("fa-eye")
+            eyelogo.classList.add("fa-eye-slash")
         }
     })
 }
+
+
 
 
 function OpenModal(str){
@@ -85,13 +94,9 @@ function CloseVoucherModal() {
 }
 
 
-function CloseReceiptModal(command=null) {
+function CloseReceiptModal() {
     const modal = document.getElementById('ReceiptModal');
     modal.style.display = 'none';
-
-    if(command=== 'refresh'){
-        window.location.reload();
-    }
 }
 
 // Function to update the total amount after deleting a record
@@ -107,10 +112,15 @@ function updateTotalAmount() {
     document.getElementById('amt_sum').textContent = total.toFixed(2);
 }
 
+let editedEntries = [];
+let deletedEntries = [];
+let addedEntries = [];
+
 function OpenReceiptModal(str) {
     const modal = document.getElementById('ReceiptModal')
     const title = document.getElementById('receiptModalTitle')
     const saveButton = document.getElementById('saveButton')
+    const updateButton = document.getElementById('updateButton')
     const printButton = document.getElementById('printButton')
     const voucherField = document.getElementById('receiptVoucherId')
     
@@ -119,17 +129,23 @@ function OpenReceiptModal(str) {
 
     // Set modal title and button visibility based on mode
     if (str === 'view') {
-        document.getElementById('addEntryBtn').classList.add('d-none');
+        addEntryBtn = document.getElementById('addEntryBtn').classList.add('d-none');
+        updateButton.classList.add('d-none');
         title.textContent = 'Fee Invoice'
         saveButton.classList.remove('d-none')
         printButton.classList.remove('d-none')
 
     }
     else if (str === 'edit') {
-        document.getElementById('addEntryBtn').classList.remove('d-none');
+        addEntryBtn = document.getElementById('addEntryBtn').classList.remove('d-none');
+        updateButton.classList.remove('d-none');
         title.textContent = 'Edit Invoice';
         saveButton.classList.add('d-none');
         printButton.classList.add('d-none');
+
+        editedEntries = [];
+        deletedEntries = [];
+
     }
     modal.style.display = 'block';
 
@@ -155,51 +171,42 @@ function saveNewEntry(button) {
     const row = button.closest('tr');
     const description = row.querySelector('.new-description').value.trim();
     const amount = parseFloat(row.querySelector('.new-amount').value.trim());
-    const voucherId = parseInt(document.getElementById('receiptVoucherId').value);
     const StudentId = parseInt(document.getElementById('receiptStudentId').value);
 
     if (!description || isNaN(amount)) {
-      alert("Please fill in valid description and amount.");
-      return;
+        alert("Please fill in valid description and amount.");
+        return;
     }
-  
-    // Send to server
-    fetch('server.php?action=addentry', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        voucher_id: voucherId,
+
+    // Generate a unique ID for the new row
+    const uniqueId = `new-${Date.now()}`;
+
+    // Update the table row
+    row.setAttribute('data-id', uniqueId); // Assign the unique ID to the row
+    row.innerHTML = `
+        <td>${description}</td>
+        <td>${amount.toFixed(2)}</td>
+        <td>
+        <a id='new_row_edit' href='#' class='text-primary me-2 text-decoration-none'>
+            <i class='fas fa-edit edit_entry'></i>
+        </a>
+        <a id='new_row_del' href='#' class='text-danger text-decoration-none'>
+            <i class='fas fa-trash-alt del_entry'></i>
+        </a>
+        </td>
+    `;
+
+    // Add the new entry to the addedEntries array
+    addedEntries.push({
+        id: uniqueId,
         student_id: StudentId,
-        description: description,
-        amount: amount
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        // Reload or update the table row (optional)
-        row.innerHTML = `
-          <td>${description}</td>
-          <td>${amount.toFixed(2)}</td>
-          <td>
-            <a href='#' class='text-primary me-2 text-decoration-none'>
-                <i data-entryedit=${row['detail_id']} class='fas fa-edit edit_entry'></i>
-            </a>
-            <a href='#'  class='text-danger text-decoration-none'>
-                <i data-entrydel=${row['detail_id']} class='fas fa-trash-alt del_entry'></i>
-            </a>
-          </td>
-        `;
-        updateTotalAmount();
-      } else {
-        alert("Failed to add entry: " + data.message);
-      }
-    })
-    .catch(err => console.error("Error:", err));
+        amount: amount,
+        description: description
+    });
+
+    updateTotalAmount();
 }
-  
+
 function cancelNewEntry(button) {
     const row = button.closest('tr');
     row.remove();
@@ -219,8 +226,6 @@ function generatePDF() {
     };
 
     modal.classList.add('print-mode');
-    // hide buttons or adjust layout via CSS
-    
     html2pdf().set(options).from(modal).save().then(() => {
         modal.classList.remove('print-mode');
     });
@@ -388,48 +393,51 @@ document.addEventListener("DOMContentLoaded", ()=>{
 
     });
 
-    // for detail records
-    
+    // for detail records    
     innertbody = document.getElementById("receiptDetails")
     innertbody.addEventListener('click', (e) => {
         const inner_del_entry_Btn = e.target.closest(".del_entry");
         const inner_edit_entry_Btn = e.target.closest(".edit_entry");
 
-        if(inner_del_entry_Btn){
-            entrydel = inner_del_entry_Btn.getAttribute('data-entrydel')
-            
-            if (confirm('Are you sure you want to delete this?')) {
-                fetch(`server.php?action=deleteentry&id=${entrydel}`)
-                .then(res=>res.text())
-                .then(data=>{
-                    const row = inner_del_entry_Btn.closest('tr');
-                    row.remove();
-
-                    updateTotalAmount();
-
-                })
+        if (inner_del_entry_Btn) {
+            const row = inner_del_entry_Btn.closest('tr');
+            const entryId = inner_del_entry_Btn.getAttribute('data-entrydel'); // This will be `null` for new rows.
+        
+            if (!entryId) {
+                // Remove the entry from `addedEntries` if it's a new row
+                const addedEntryIndex = addedEntries.findIndex(entry => entry.id === row.getAttribute('data-id'));
+                if (addedEntryIndex !== -1) {
+                    addedEntries.splice(addedEntryIndex, 1);
+                }
+            } else {
+                // Add the entry ID to the `deletedEntries` array for existing rows
+                deletedEntries.push(entryId);
             }
+        
+            // Remove the row from the UI
+            row.remove();
+        
+            // Update the total amount
+            updateTotalAmount();
         }
 
         if (inner_edit_entry_Btn) {
             const row = inner_edit_entry_Btn.closest('tr');
             const descriptionCell = row.querySelector('td:nth-child(1)');
             const amountCell = row.querySelector('td:nth-child(2)');
+            const entryId = inner_edit_entry_Btn.getAttribute('data-entryedit'); // This will be `null` for new rows.
         
-            // Convert the description and amount cells into editable inputs
-            const currentDescription = descriptionCell.textContent.trim();
-            const currentAmount = amountCell.textContent.trim();
+            if (inner_edit_entry_Btn.classList.contains('fa-edit')) {
+                const currentDescription = descriptionCell.textContent.trim();
+                const currentAmount = amountCell.textContent.trim();
         
-            descriptionCell.innerHTML = `<input type="text" class="form-control edit-description" value="${currentDescription}" required>`;
-            amountCell.innerHTML = `<input type="number" class="form-control edit-amount" value="${currentAmount}" required>`;
+                descriptionCell.innerHTML = `<input type="text" class="form-control edit-description" value="${currentDescription}" required>`;
+                amountCell.innerHTML = `<input type="number" class="form-control edit-amount" value="${currentAmount}" required>`;
         
-            // Change the edit button to a save button
-            inner_edit_entry_Btn.classList.remove('fa-edit');
-            inner_edit_entry_Btn.classList.add('fa-save');
-            inner_edit_entry_Btn.setAttribute('title', 'Save Changes');
-        
-            // Add a click event listener for saving the changes
-            inner_edit_entry_Btn.addEventListener('click', () => {
+                inner_edit_entry_Btn.classList.remove('fa-edit');
+                inner_edit_entry_Btn.classList.add('fa-save');
+                inner_edit_entry_Btn.setAttribute('title', 'Save Changes');
+            } else if (inner_edit_entry_Btn.classList.contains('fa-save')) {
                 const updatedDescription = row.querySelector('.edit-description').value.trim();
                 const updatedAmount = parseFloat(row.querySelector('.edit-amount').value.trim());
         
@@ -438,41 +446,67 @@ document.addEventListener("DOMContentLoaded", ()=>{
                     return;
                 }
         
-                // Send the updated data to the server
-                const entryId = inner_edit_entry_Btn.getAttribute('data-entryedit');
-                fetch(`server.php?action=updateentry`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
+                descriptionCell.textContent = updatedDescription;
+                amountCell.textContent = updatedAmount.toFixed(2);
+        
+                inner_edit_entry_Btn.classList.remove('fa-save');
+                inner_edit_entry_Btn.classList.add('fa-edit');
+                inner_edit_entry_Btn.setAttribute('title', 'Edit Entry');
+        
+                if (!entryId) {
+                    // Update the `addedEntries` array for new rows
+                    const addedEntryIndex = addedEntries.findIndex(entry => entry.id === row.getAttribute('data-id'));
+                    if (addedEntryIndex !== -1) {
+                        addedEntries[addedEntryIndex].description = updatedDescription;
+                        addedEntries[addedEntryIndex].amount = updatedAmount;
+                    }
+                } else {
+                    // Update the `editedEntries` array for existing rows
+                    editedEntries.push({
                         id: entryId,
                         description: updatedDescription,
-                        amount: updatedAmount,
-                    }),
-                })
-                    .then((res) => res.json())
-                    .then((data) => {
-                        if (data.success) {
-
-                            // Update the UI with the saved values
-                            descriptionCell.textContent = updatedDescription;
-                            amountCell.textContent = updatedAmount.toFixed(2);
+                        amount: updatedAmount
+                    });
+                }
         
-                            // Revert the save button back to an edit button
-                            inner_edit_entry_Btn.classList.remove('fa-save');
-                            inner_edit_entry_Btn.classList.add('fa-edit');
-                            inner_edit_entry_Btn.setAttribute('title', 'Edit Entry');
-        
-                            updateTotalAmount(); // Update the total amount
-                        } else {
-                            alert('Error updating entry: ' + data.message);
-                        }
-                    })
-                    .catch((error) => console.error('Error:', error));
-            });
+                updateTotalAmount();
+            }
         }
     })
+
+    //Update button function
+
+    document.getElementById('updateButton').addEventListener('click', () => {
+        if (editedEntries.length === 0 && deletedEntries.length === 0 && addedEntries.length === 0) {
+            alert('No changes to save.');
+            return;
+        }
+    
+        fetch('server.php?action=updateEntries', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                voucherId: parseInt(document.getElementById('receiptVoucherId').value),
+                editedEntries: editedEntries,
+                addedEntries: addedEntries,
+                deletedEntries: deletedEntries
+            })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Changes saved successfully.');
+                    CloseReceiptModal()
+                    window.location.reload();
+                } else {
+                    alert('Error saving changes: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+
+    });
 
     table_body.addEventListener('click', (e) => {
         add_row_btn = e.target.closest('.add_row');
@@ -498,7 +532,10 @@ document.addEventListener("DOMContentLoaded", ()=>{
         if (del_row_btn) {
             del_row_btn.closest('tr').remove();
         }
+
+        
 });
+
 
 // Close modal 
 window.onclick = function(e) {
